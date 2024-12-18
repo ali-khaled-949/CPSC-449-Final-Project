@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Session
 from dotenv import load_dotenv
 import os
 
-# Load .env file
+# Load environment variables
 load_dotenv()
 
 # Get the DATABASE_URL
@@ -55,6 +55,13 @@ class UserSubscription(Base):
     usage_count = Column(Integer, default=0, nullable=False)
     plan = relationship("SubscriptionPlan", back_populates="subscriptions")
     user = relationship("User", back_populates="subscriptions")
+
+class Permission(Base):
+    __tablename__ = "permissions"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), unique=True, nullable=False)
+    description = Column(String(255), nullable=True)
+    api_endpoint = Column(String(255), unique=True, nullable=False)
 
 Base.metadata.create_all(bind=engine)
 
@@ -137,6 +144,52 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Plan deleted successfully"}
 
+# Routes for Permissions Management
+@app.post("/permissions")
+def add_permission(
+    name: str = Query(..., description="Permission name"), 
+    api_endpoint: str = Query(..., description="API endpoint"), 
+    description: Optional[str] = Query(None, description="Permission description"), 
+    db: Session = Depends(get_db)
+):
+    existing_permission = db.query(Permission).filter(Permission.name == name).first()
+    if existing_permission:
+        raise HTTPException(status_code=400, detail="Permission already exists")
+    new_permission = Permission(name=name, description=description, api_endpoint=api_endpoint)
+    db.add(new_permission)
+    db.commit()
+    db.refresh(new_permission)
+    return {"message": "Permission added successfully", "id": new_permission.id}
+
+@app.put("/permissions/{permission_id}")
+def modify_permission(
+    permission_id: int, 
+    name: Optional[str] = None, 
+    api_endpoint: Optional[str] = None, 
+    description: Optional[str] = None, 
+    db: Session = Depends(get_db)
+):
+    permission = db.query(Permission).filter(Permission.id == permission_id).first()
+    if not permission:
+        raise HTTPException(status_code=404, detail="Permission not found")
+    if name:
+        permission.name = name
+    if api_endpoint:
+        permission.api_endpoint = api_endpoint
+    if description:
+        permission.description = description
+    db.commit()
+    return {"message": "Permission updated successfully"}
+
+@app.delete("/permissions/{permission_id}")
+def delete_permission(permission_id: int, db: Session = Depends(get_db)):
+    permission = db.query(Permission).filter(Permission.id == permission_id).first()
+    if not permission:
+        raise HTTPException(status_code=404, detail="Permission not found")
+    db.delete(permission)
+    db.commit()
+    return {"message": "Permission deleted successfully"}
+
 # Routes for User Subscriptions
 @app.post("/subscriptions")
 def assign_subscription(subscription: SubscriptionAssign, db: Session = Depends(get_db)):
@@ -189,33 +242,3 @@ def check_access(user_id: int, api_request: str, db: Session = Depends(get_db)):
     subscription.usage_count += 1
     db.commit()
     return {"message": "Access granted"}
-
-from fastapi import Query
-
-# Permissions Table
-class Permission(Base):
-    __tablename__ = "permissions"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), unique=True, nullable=False)
-    description = Column(String(255), nullable=True)
-    api_endpoint = Column(String(255), unique=True, nullable=False)
-
-Base.metadata.create_all(bind=engine)
-
-# Add a Permission using Query Parameters
-@app.post("/permissions")
-def add_permission(
-    name: str = Query(..., description="Permission name"), 
-    api_endpoint: str = Query(..., description="API endpoint"), 
-    description: Optional[str] = Query(None, description="Permission description"), 
-    db: Session = Depends(get_db)
-):
-    existing_permission = db.query(Permission).filter(Permission.name == name).first()
-    if existing_permission:
-        raise HTTPException(status_code=400, detail="Permission already exists")
-    
-    new_permission = Permission(name=name, description=description, api_endpoint=api_endpoint)
-    db.add(new_permission)
-    db.commit()
-    db.refresh(new_permission)
-    return {"message": "Permission added successfully", "id": new_permission.id}
