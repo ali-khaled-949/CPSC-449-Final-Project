@@ -52,6 +52,8 @@ class SubscriptionAssign(BaseModel):
     user_id: str
     plan_id: int
 
+class UpdateSubscription(BaseModel):
+    plan_id: int
 
 
 # Admin: Create a Subscription Plan
@@ -76,13 +78,14 @@ async def create_plan(plan: PlanCreate, db: SessionLocal = Depends(get_db)):
 
 
 @app.put("/subscriptions/{user_id}")
-async def update_subscription(user_id: str, plan_id: int, db: SessionLocal = Depends(get_db)):
+async def update_subscription(user_id: str, update: UpdateSubscription, db: Session = Depends(get_db)):
     subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
     if not subscription:
         raise HTTPException(status_code=404, detail="Subscription not found")
-    subscription.plan_id = plan_id
+    
+    subscription.plan_id = update.plan_id  # Update plan_id
     db.commit()
-    return {"message": f"Subscription for user {user_id} updated to plan {plan_id}"}
+    return {"message": f"Subscription for user {user_id} updated to plan {update.plan_id}"}
 
 
 
