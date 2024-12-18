@@ -19,10 +19,6 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Database Models
-
-
-# Create tables in the database
 
 # FastAPI Application
 app = FastAPI()
@@ -75,15 +71,35 @@ async def create_plan(plan: PlanCreate, db: SessionLocal = Depends(get_db)):
     return {"message": "Plan created successfully", "plan_id": new_plan.id}
 
 
+@app.get("/subscriptions/{user_id}")
+async def get_subscription(user_id: int, db: SessionLocal = Depends(get_db)):
+    user_subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
+    if not user_subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+
+    plan = user_subscription.plan
+    return {
+        "user_id": user_subscription.user_id,
+        "plan": {
+            "name": plan.name,
+            "description": plan.description,
+            "api_permissions": plan.api_permissions.split(","),
+            "usage_limit": plan.usage_limit,
+        },
+        "usage_count": user_subscription.usage_count,
+    }
+
+
 @app.put("/subscriptions/{user_id}")
-async def update_subscription(user_id: str, plan_id: int, db: SessionLocal = Depends(get_db)):
+async def update_subscription(user_id: int, plan_id: int, db: SessionLocal = Depends(get_db)):
     subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
     if not subscription:
         raise HTTPException(status_code=404, detail="Subscription not found")
+
     subscription.plan_id = plan_id
     db.commit()
+    db.refresh(subscription)
     return {"message": f"Subscription for user {user_id} updated to plan {plan_id}"}
-
 
 
 # Admin: Update a Subscription Plan
@@ -151,25 +167,6 @@ async def service2():
     return {"message": "Service 6 is active"}
 
 
-# User: Get Subscription Details
-@app.get("/subscriptions/{user_id}")
-async def get_subscription(user_id: str, db: SessionLocal = Depends(get_db)):
-    user_subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
-    if not user_subscription:
-        raise HTTPException(status_code=404, detail="Subscription not found")
-
-    plan = user_subscription.plan
-    return {
-        "user_id": user_subscription.user_id,
-        "plan": {
-            "name": plan.name,
-            "description": plan.description,
-            "api_permissions": plan.api_permissions.split(","),
-            "usage_limit": plan.usage_limit,
-        },
-        "usage_count": user_subscription.usage_count,
-    }
-
 
 @app.get("/access/{user_id}/{api_request}")
 async def check_access(user_id: str, api_request: str, db: SessionLocal = Depends(get_db)):
@@ -219,12 +216,11 @@ class SubscriptionPlan(Base):
 class UserSubscription(Base):
     __tablename__ = "user_subscriptions"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String(255), nullable=False)  # VARCHAR(255)
+    user_id = Column(Integer, nullable=False)  # Use Integer instead of String
     plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False)
-    usage_count = Column(Integer, default=0, nullable=False)  # Added column for usage count
-
-    # Relationship with SubscriptionPlan
+    usage_count = Column(Integer, default=0, nullable=False)
     plan = relationship("SubscriptionPlan", back_populates="subscriptions")
+
 
 
 class Permission(Base):
