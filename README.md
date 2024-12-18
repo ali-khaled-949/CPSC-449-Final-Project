@@ -1,3 +1,7 @@
+Author
+Name: Ali Khaled
+Email: alikhaled@csu.fullerton.edu
+
 # Cloud Service Access Management System
 
 ## Project Description
