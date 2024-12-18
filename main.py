@@ -189,3 +189,33 @@ def check_access(user_id: int, api_request: str, db: Session = Depends(get_db)):
     subscription.usage_count += 1
     db.commit()
     return {"message": "Access granted"}
+
+from fastapi import Query
+
+# Permissions Table
+class Permission(Base):
+    __tablename__ = "permissions"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), unique=True, nullable=False)
+    description = Column(String(255), nullable=True)
+    api_endpoint = Column(String(255), unique=True, nullable=False)
+
+Base.metadata.create_all(bind=engine)
+
+# Add a Permission using Query Parameters
+@app.post("/permissions")
+def add_permission(
+    name: str = Query(..., description="Permission name"), 
+    api_endpoint: str = Query(..., description="API endpoint"), 
+    description: Optional[str] = Query(None, description="Permission description"), 
+    db: Session = Depends(get_db)
+):
+    existing_permission = db.query(Permission).filter(Permission.name == name).first()
+    if existing_permission:
+        raise HTTPException(status_code=400, detail="Permission already exists")
+    
+    new_permission = Permission(name=name, description=description, api_endpoint=api_endpoint)
+    db.add(new_permission)
+    db.commit()
+    db.refresh(new_permission)
+    return {"message": "Permission added successfully", "id": new_permission.id}
