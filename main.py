@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
-from sqlalchemy.orm import sessionmaker, declarative_base, relationship
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Session
 from dotenv import load_dotenv
 import os
 
@@ -37,11 +37,13 @@ class PlanCreate(BaseModel):
     api_permissions: List[str]
     usage_limit: int
 
+
 class PlanUpdate(BaseModel):
     name: Optional[str]
     description: Optional[str]
     api_permissions: Optional[List[str]]
     usage_limit: Optional[int]
+
 
 class UpdateSubscription(BaseModel):
     plan_id: int
@@ -57,6 +59,7 @@ class SubscriptionPlan(Base):
     usage_limit = Column(Integer, nullable=False)
     subscriptions = relationship("UserSubscription", back_populates="plan")
 
+
 class UserSubscription(Base):
     __tablename__ = "user_subscriptions"
     id = Column(Integer, primary_key=True, index=True)
@@ -66,12 +69,13 @@ class UserSubscription(Base):
     plan = relationship("SubscriptionPlan", back_populates="subscriptions")
 
 
+# Create tables in the database
 Base.metadata.create_all(bind=engine)
 
 
 # Admin: Create a Subscription Plan
 @app.post("/plans")
-async def create_plan(plan: PlanCreate, db: SessionLocal = Depends(get_db)):
+async def create_plan(plan: PlanCreate, db: Session = Depends(get_db)):
     existing_plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.name == plan.name).first()
     if existing_plan:
         raise HTTPException(status_code=400, detail="Plan with this name already exists")
@@ -88,24 +92,13 @@ async def create_plan(plan: PlanCreate, db: SessionLocal = Depends(get_db)):
     return {"message": "Plan created successfully", "plan_id": new_plan.id}
 
 
+# Admin: Update User Subscription
 @app.put("/subscriptions/{user_id}")
 async def update_subscription(user_id: str, update: UpdateSubscription, db: Session = Depends(get_db)):
     subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
     if not subscription:
         raise HTTPException(status_code=404, detail="Subscription not found")
-    
-    subscription.plan_id = update.plan_id  # Update plan_id
-    db.commit()
-    return {"message": f"Subscription for user {user_id} updated to plan {update.plan_id}"}
 
-
-
-    # Query for the user's subscription
-    subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
-    if not subscription:
-        raise HTTPException(status_code=404, detail="Subscription not found")
-
-    # Update the plan_id
     subscription.plan_id = update.plan_id
     db.commit()
     db.refresh(subscription)
@@ -114,7 +107,7 @@ async def update_subscription(user_id: str, update: UpdateSubscription, db: Sess
 
 # User: Get Subscription Details
 @app.get("/subscriptions/{user_id}")
-async def get_subscription(user_id: str, db: SessionLocal = Depends(get_db)):
+async def get_subscription(user_id: str, db: Session = Depends(get_db)):
     subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
     if not subscription:
         raise HTTPException(status_code=404, detail="Subscription not found")
@@ -132,9 +125,9 @@ async def get_subscription(user_id: str, db: SessionLocal = Depends(get_db)):
     }
 
 
-# User: Check Access to an API Request
+# User: Check Access to an API
 @app.get("/access/{user_id}/{api_request}")
-async def check_access(user_id: str, api_request: str, db: SessionLocal = Depends(get_db)):
+async def check_access(user_id: str, api_request: str, db: Session = Depends(get_db)):
     subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
     if not subscription:
         raise HTTPException(status_code=404, detail="Subscription not found")
@@ -150,26 +143,31 @@ async def check_access(user_id: str, api_request: str, db: SessionLocal = Depend
     return {"message": "Access granted"}
 
 
-# Sample APIs
+# Sample API Endpoints (Simulated Cloud APIs)
 @app.get("/api/service1")
 async def service1():
     return {"message": "Service 1 is active"}
+
 
 @app.get("/api/service2")
 async def service2():
     return {"message": "Service 2 is active"}
 
+
 @app.get("/api/service3")
 async def service3():
     return {"message": "Service 3 is active"}
+
 
 @app.get("/api/service4")
 async def service4():
     return {"message": "Service 4 is active"}
 
+
 @app.get("/api/service5")
 async def service5():
     return {"message": "Service 5 is active"}
+
 
 @app.get("/api/service6")
 async def service6():
