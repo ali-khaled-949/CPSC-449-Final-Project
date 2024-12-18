@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
-from sqlalchemy.orm import sessionmaker, declarative_base, relationship
+from sqlalchemy.orm import session maker, declarative_base, relationship
 from dotenv import load_dotenv
 import os
 
@@ -89,11 +89,17 @@ async def create_plan(plan: PlanCreate, db: SessionLocal = Depends(get_db)):
 
 
 @app.put("/subscriptions/{user_id}")
-async def update_subscription(
-    user_id: str, 
-    update: UpdateSubscription,  # Correct model
-    db: Session = Depends(get_db)
-):
+async def update_subscription(user_id: str, update: UpdateSubscription, db: Session = Depends(get_db)):
+    subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    
+    subscription.plan_id = update.plan_id  # Update plan_id
+    db.commit()
+    return {"message": f"Subscription for user {user_id} updated to plan {update.plan_id}"}
+
+
+    
     # Query for the user's subscription
     subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
     if not subscription:
@@ -105,7 +111,7 @@ async def update_subscription(
     db.refresh(subscription)
     return {"message": f"Subscription for user {user_id} updated to plan {update.plan_id}"}
 
-    
+
 # User: Get Subscription Details
 @app.get("/subscriptions/{user_id}")
 async def get_subscription(user_id: str, db: SessionLocal = Depends(get_db)):
