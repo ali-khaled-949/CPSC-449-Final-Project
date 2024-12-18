@@ -74,6 +74,18 @@ async def create_plan(plan: PlanCreate, db: SessionLocal = Depends(get_db)):
     db.refresh(new_plan)
     return {"message": "Plan created successfully", "plan_id": new_plan.id}
 
+
+@app.put("/subscriptions/{user_id}")
+async def update_subscription(user_id: str, plan_id: int, db: SessionLocal = Depends(get_db)):
+    subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    subscription.plan_id = plan_id
+    db.commit()
+    return {"message": f"Subscription for user {user_id} updated to plan {plan_id}"}
+
+
+
 # Admin: Update a Subscription Plan
 @app.put("/plans/{plan_id}")
 async def update_plan(plan_id: int, plan: PlanUpdate, db: SessionLocal = Depends(get_db)):
@@ -113,6 +125,30 @@ async def subscribe_to_plan(user_id: str, plan_id: int, db: SessionLocal = Depen
     db.add(new_subscription)
     db.commit()
     return {"message": f"User {user_id} subscribed to plan {plan_id}"}
+
+@app.get("/api/service1")
+async def service1():
+    return {"message": "Service 1 is active"}
+
+@app.get("/api/service2")
+async def service2():
+    return {"message": "Service 2 is active"}
+
+@app.get("/api/service3")
+async def service2():
+    return {"message": "Service 3 is active"}
+
+@app.get("/api/service4")
+async def service2():
+    return {"message": "Service 4 is active"}
+
+@app.get("/api/service5")
+async def service2():
+    return {"message": "Service 5 is active"}
+
+@app.get("/api/service6")
+async def service2():
+    return {"message": "Service 6 is active"}
 
 
 # User: Get Subscription Details
