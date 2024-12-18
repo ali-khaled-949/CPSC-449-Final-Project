@@ -48,6 +48,51 @@ class SubscriptionAssign(BaseModel):
     user_id: str
     plan_id: int
 
+class UserCreate(BaseModel):
+    name: str
+    email: str
+
+
+@app.post("/users", response_model=dict)
+async def create_user(user: UserCreate, db: SessionLocal = Depends(get_db)):
+    # Check if email already exists
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Create a new user
+    new_user = User(name=user.name, email=user.email)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"message": "User created successfully", "user_id": new_user.id}
+
+
+
+@app.get("/users", response_model=List[dict])
+async def get_users(db: SessionLocal = Depends(get_db)):
+    users = db.query(User).all()
+    return [{"id": user.id, "name": user.name, "email": user.email} for user in users]
+
+
+@app.post("/subscriptions/assign")
+async def assign_subscription(user_id: int, plan_id: int, db: SessionLocal = Depends(get_db)):
+    # Check if user exists
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Check if user already has a subscription
+    existing_subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).first()
+    if existing_subscription:
+        raise HTTPException(status_code=400, detail="User already has a subscription")
+
+    # Assign a new subscription
+    subscription = UserSubscription(user_id=user_id, plan_id=plan_id)
+    db.add(subscription)
+    db.commit()
+    return {"message": f"Subscription assigned to user {user_id} for plan {plan_id}"}
+
 
 
 # Admin: Create a Subscription Plan
@@ -88,6 +133,7 @@ async def get_subscription(user_id: int, db: SessionLocal = Depends(get_db)):
         },
         "usage_count": user_subscription.usage_count,
     }
+
 
 
 @app.put("/subscriptions/{user_id}")
