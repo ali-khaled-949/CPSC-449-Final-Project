@@ -1,6 +1,6 @@
-Author
-Name: Ali Khaled
-Email: alikhaled@csu.fullerton.edu
+Author<br>
+Name: Ali Khaled<br>
+Email: alikhaled@csu.fullerton.edu<br>
 
 # Cloud Service Access Management System
 
